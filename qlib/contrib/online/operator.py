@@ -14,14 +14,33 @@ from ...data import D
 from ...log import get_module_logger
 from ...utils import get_pre_trading_date, is_tradable_date
 from ..evaluate import risk_analysis
-from ..backtest.backtest import update_account
 
 from .manager import UserManager
 from .utils import prepare
-from .utils import create_user_folder
-from .executor import load_order_list, save_order_list
-from .executor import SimulatorExecutor
-from .executor import save_score_series, load_score_series
+from .utils import create_user_folder, load_order_list, save_order_list, load_order_list, save_order_list
+from ...backtest.executor import SimulatorExecutor
+
+
+def update_account(trade_account, trade_info, trade_exchange, trade_date):
+    """
+    Update the account and strategy
+
+    Parameters
+    ----------
+    trade_account : Account()
+    trade_info : list of [Order(), float, float, float]
+        (order, trade_val, trade_cost, trade_price), trade_info with out factor
+    trade_exchange : Exchange()
+        used to get the $close_price at trade_date to update account
+    trade_date : pd.Timestamp
+    """
+    # update account
+    for [order, trade_val, trade_cost, trade_price] in trade_info:
+        if order.deal_amount == 0:
+            continue
+        trade_account.update_order(order=order, trade_val=trade_val, cost=trade_cost, trade_price=trade_price)
+    # at the end of trade date, update the account based the $close_price of stocks.
+    trade_account.update_daily_end(today=trade_date, trader=trade_exchange)
 
 
 class Operator:

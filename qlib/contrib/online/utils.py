@@ -96,3 +96,118 @@ def prepare(um, today, user_id, exchange_config=None):
         exchange_paras = {}
     trade_exchange = Exchange(trade_dates=dates, **exchange_paras)
     return dates, trade_exchange
+
+
+def save_score_series(score_series, user_path, trade_date):
+    """Save the score_series into a .csv file.
+    The columns of saved file is
+        [stock_id, score]
+
+    Parameter
+    ---------
+        order_list: [Order()]
+            list of Order()
+        date: pd.Timestamp
+            the date to save the order list
+        user_path: str / pathlib.Path()
+            the sub folder to save user data
+    """
+    user_path = pathlib.Path(user_path)
+    YYYY, MM, DD = str(trade_date.date()).split("-")
+    folder_path = user_path / "score" / YYYY / MM
+    if not folder_path.exists():
+        folder_path.mkdir(parents=True)
+    file_path = folder_path / "score_{}.csv".format(str(trade_date.date()))
+    score_series.to_csv(file_path)
+
+
+def load_score_series(user_path, trade_date):
+    """Save the score_series into a .csv file.
+    The columns of saved file is
+        [stock_id, score]
+
+    Parameter
+    ---------
+        order_list: [Order()]
+            list of Order()
+        date: pd.Timestamp
+            the date to save the order list
+        user_path: str / pathlib.Path()
+            the sub folder to save user data
+    """
+    user_path = pathlib.Path(user_path)
+    YYYY, MM, DD = str(trade_date.date()).split("-")
+    folder_path = user_path / "score" / YYYY / MM
+    if not folder_path.exists():
+        folder_path.mkdir(parents=True)
+    file_path = folder_path / "score_{}.csv".format(str(trade_date.date()))
+    score_series = pd.read_csv(file_path, index_col=0, header=None, names=["instrument", "score"])
+    return score_series
+
+
+def save_order_list(order_list, user_path, trade_date):
+    """
+    Save the order list into a json file.
+    Will calculate the real amount in order according to factors at date.
+
+    The format in json file like
+    {"sell": {"stock_id": amount, ...}
+    ,"buy": {"stock_id": amount, ...}}
+
+        :param
+            order_list: [Order()]
+                list of Order()
+            date: pd.Timestamp
+                the date to save the order list
+            user_path: str / pathlib.Path()
+                the sub folder to save user data
+    """
+    user_path = pathlib.Path(user_path)
+    YYYY, MM, DD = str(trade_date.date()).split("-")
+    folder_path = user_path / "trade" / YYYY / MM
+    if not folder_path.exists():
+        folder_path.mkdir(parents=True)
+    sell = {}
+    buy = {}
+    for order in order_list:
+        if order.direction == 0:  # sell
+            sell[order.stock_id] = [order.amount, order.factor]
+        else:
+            buy[order.stock_id] = [order.amount, order.factor]
+    order_dict = {"sell": sell, "buy": buy}
+    file_path = folder_path / "orderlist_{}.json".format(str(trade_date.date()))
+    with file_path.open("w") as fp:
+        json.dump(order_dict, fp)
+
+
+def load_order_list(user_path, trade_date):
+    user_path = pathlib.Path(user_path)
+    YYYY, MM, DD = str(trade_date.date()).split("-")
+    path = user_path / "trade" / YYYY / MM / "orderlist_{}.json".format(str(trade_date.date()))
+    if not path.exists():
+        raise ValueError("File {} not exists!".format(path))
+    # get orders
+    with path.open("r") as fp:
+        order_dict = json.load(fp)
+    order_list = []
+    for stock_id in order_dict["sell"]:
+        amount, factor = order_dict["sell"][stock_id]
+        order = Order(
+            stock_id=stock_id,
+            amount=amount,
+            trade_date=pd.Timestamp(trade_date),
+            direction=Order.SELL,
+            factor=factor,
+        )
+        order_list.append(order)
+    for stock_id in order_dict["buy"]:
+        amount, factor = order_dict["buy"][stock_id]
+        order = Order(
+            stock_id=stock_id,
+            amount=amount,
+            trade_date=pd.Timestamp(trade_date),
+            direction=Order.BUY,
+            factor=factor,
+        )
+        order_list.append(order)
+    return order_list
